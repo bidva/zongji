@@ -139,7 +139,7 @@ ZongJi.prototype._isChecksumEnabled = async function(next) {
         return next(false);
       } else {
         // Any other errors should be emitted
-        self.emitSync('error', err);
+        await self.emit('error', err);
         return;
       }
     }
@@ -154,7 +154,7 @@ ZongJi.prototype._isChecksumEnabled = async function(next) {
       connection.query(setChecksumSql, function(err) {
         if (err) {
           // Errors should be emitted
-          self.emitSync('error', err);
+          await self.emit('error', err);
           return;
         }
         next(checksumEnabled);
@@ -170,7 +170,7 @@ ZongJi.prototype._findBinlogEnd = async function(next) {
   self.ctrlConnection.query('SHOW BINARY LOGS', function(err, rows) {
     if (err) {
       // Errors should be emitted
-      self.emitSync('error', err);
+      await self.emit('error', err);
       return;
     }
     next(rows.length > 0 ? rows[rows.length - 1] : null);
@@ -198,14 +198,14 @@ ZongJi.prototype._fetchTableInfo = async function(tableMapEvent, next) {
   this.ctrlConnection.query(sql, function(err, rows) {
     if (err) {
       // Errors should be emitted
-      self.emitSync('error', err);
+      await self.emit('error', err);
       // This is a fatal error, no additional binlog events will be
       // processed since next() will never be called
       return;
     }
 
     if (rows.length === 0) {
-      self.emitSync('error', new Error(
+      await self.emit('error', new Error(
         'Insufficient permissions to access: ' +
         tableMapEvent.schemaName + '.' + tableMapEvent.tableName));
       // This is a fatal error, no additional binlog events will be
@@ -234,7 +234,7 @@ ZongJi.prototype.start = function(options) {
   var _start = function() {
     self.connection._implyConnect();
     self.connection._protocol._enqueue(new self.binlog(async function(error, event){
-      if(error) return self.emitSync('error', error);
+      if(error) return await self.emit('error', error);
       // Do not emit events that have been filtered out
       if(event === undefined || event._filtered === true) return;
 
@@ -247,7 +247,7 @@ ZongJi.prototype.start = function(options) {
             self._fetchTableInfo(event, function() {
               // merge the column info with metadata
               event.updateColumnInfo();
-              self.emitSync('binlog', event);
+              await self.emit('binlog', event);
               self.connection.resume();
             });
             return;
@@ -260,7 +260,7 @@ ZongJi.prototype.start = function(options) {
           break;
       }
       self.binlogNextPos = event.nextPosition;
-      self.emitSync('binlog', event);
+      await self.emit('binlog', event);
     }));
   };
 
@@ -312,7 +312,7 @@ ZongJi.prototype._skipSchema = function(database, table){
 };
 
 ZongJi.prototype._emitError = async function(error) {
-  this.emitSync('error', error);
+  await self.emit('error', error);
 };
 
 module.exports = ZongJi;
