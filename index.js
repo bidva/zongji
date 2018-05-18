@@ -3,7 +3,9 @@ var Connection = require('mysql/lib/Connection');
 var Pool = require('mysql/lib/Pool');
 
 var util = require('util');
-var EventEmitter = require('events').EventEmitter;
+const AwaitEventEmitter = require('await-event-emitter')
+const emitter = new AwaitEventEmitter();
+
 var generateBinlog = require('./lib/sequence/binlog');
 
 var alternateDsn = [
@@ -14,7 +16,7 @@ var alternateDsn = [
 function ZongJi(dsn, options) {
   this.set(options);
 
-  EventEmitter.call(this);
+  AwaitEventEmitter.call(this);
 
   var binlogDsn;
 
@@ -65,7 +67,7 @@ var cloneObjectSimple = function(obj){
   return out;
 }
 
-util.inherits(ZongJi, EventEmitter);
+util.inherits(ZongJi, AwaitEventEmitter);
 
 ZongJi.prototype._init = function() {
   var self = this;
@@ -124,7 +126,7 @@ ZongJi.prototype._init = function() {
   };
 };
 
-ZongJi.prototype._isChecksumEnabled = function(next) {
+ZongJi.prototype._isChecksumEnabled = async function(next) {
   var self = this;
   var sql = 'select @@GLOBAL.binlog_checksum as checksum';
   var ctrlConnection = self.ctrlConnection;
@@ -137,7 +139,7 @@ ZongJi.prototype._isChecksumEnabled = function(next) {
         return next(false);
       } else {
         // Any other errors should be emitted
-        self.emit('error', err);
+        self.emitSync('error', err);
         return;
       }
     }
@@ -152,7 +154,7 @@ ZongJi.prototype._isChecksumEnabled = function(next) {
       connection.query(setChecksumSql, function(err) {
         if (err) {
           // Errors should be emitted
-          self.emit('error', err);
+          self.emitSync('error', err);
           return;
         }
         next(checksumEnabled);
@@ -163,12 +165,12 @@ ZongJi.prototype._isChecksumEnabled = function(next) {
   });
 };
 
-ZongJi.prototype._findBinlogEnd = function(next) {
+ZongJi.prototype._findBinlogEnd = async function(next) {
   var self = this;
   self.ctrlConnection.query('SHOW BINARY LOGS', function(err, rows) {
     if (err) {
       // Errors should be emitted
-      self.emit('error', err);
+      self.emitSync('error', err);
       return;
     }
     next(rows.length > 0 ? rows[rows.length - 1] : null);
@@ -188,7 +190,7 @@ var tableInfoQueryTemplate = 'SELECT ' +
   'COLUMN_COMMENT, COLUMN_TYPE ' +
   "FROM information_schema.columns " + "WHERE table_schema='%s' AND table_name='%s'";
 
-ZongJi.prototype._fetchTableInfo = function(tableMapEvent, next) {
+ZongJi.prototype._fetchTableInfo = async function(tableMapEvent, next) {
   var self = this;
   var sql = util.format(tableInfoQueryTemplate,
     tableMapEvent.schemaName, tableMapEvent.tableName);
@@ -196,14 +198,14 @@ ZongJi.prototype._fetchTableInfo = function(tableMapEvent, next) {
   this.ctrlConnection.query(sql, function(err, rows) {
     if (err) {
       // Errors should be emitted
-      self.emit('error', err);
+      self.emitSync('error', err);
       // This is a fatal error, no additional binlog events will be
       // processed since next() will never be called
       return;
     }
 
     if (rows.length === 0) {
-      self.emit('error', new Error(
+      self.emitSync('error', new Error(
         'Insufficient permissions to access: ' +
         tableMapEvent.schemaName + '.' + tableMapEvent.tableName));
       // This is a fatal error, no additional binlog events will be
@@ -231,8 +233,8 @@ ZongJi.prototype.start = function(options) {
 
   var _start = function() {
     self.connection._implyConnect();
-    self.connection._protocol._enqueue(new self.binlog(function(error, event){
-      if(error) return self.emit('error', error);
+    self.connection._protocol._enqueue(new self.binlog(async function(error, event){
+      if(error) return self.emitSync('error', error);
       // Do not emit events that have been filtered out
       if(event === undefined || event._filtered === true) return;
 
@@ -245,7 +247,7 @@ ZongJi.prototype.start = function(options) {
             self._fetchTableInfo(event, function() {
               // merge the column info with metadata
               event.updateColumnInfo();
-              self.emit('binlog', event);
+              self.emitSync('binlog', event);
               self.connection.resume();
             });
             return;
@@ -258,7 +260,7 @@ ZongJi.prototype.start = function(options) {
           break;
       }
       self.binlogNextPos = event.nextPosition;
-      self.emit('binlog', event);
+      self.emitSync('binlog', event);
     }));
   };
 
@@ -309,8 +311,8 @@ ZongJi.prototype._skipSchema = function(database, table){
            exclude[database].indexOf(table) === -1))))));
 };
 
-ZongJi.prototype._emitError = function(error) {
-  this.emit('error', error);
+ZongJi.prototype._emitError = async function(error) {
+  this.emitSync('error', error);
 };
 
 module.exports = ZongJi;

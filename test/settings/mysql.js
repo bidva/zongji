@@ -4,7 +4,7 @@ module.exports = {
   connection: {
     host     : 'localhost',
     user     : 'root',
-    password : 'numtel',
+    password : '123',
     charset  : 'utf8mb4_unicode_ci',
     port     : process.env.TEST_MYSQL_PORT,
     dateStrings : process.env.TEST_DATE_STRINGS === 'true',
