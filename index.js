@@ -132,7 +132,7 @@ ZongJi.prototype._isChecksumEnabled = async function(next) {
   var ctrlConnection = self.ctrlConnection;
   var connection = self.connection;
 
-  ctrlConnection.query(sql, function(err, rows) {
+  ctrlConnection.query(sql, async function(err, rows) {
     if (err) {
       if(err.toString().match(/ER_UNKNOWN_SYSTEM_VARIABLE/)){
         // MySQL < 5.6.2 does not support @@GLOBAL.binlog_checksum
@@ -151,7 +151,7 @@ ZongJi.prototype._isChecksumEnabled = async function(next) {
 
     var setChecksumSql = 'set @master_binlog_checksum=@@global.binlog_checksum';
     if (checksumEnabled) {
-      connection.query(setChecksumSql, function(err) {
+      connection.query(setChecksumSql, async function(err) {
         if (err) {
           // Errors should be emitted
           await self.emit('error', err);
@@ -167,7 +167,7 @@ ZongJi.prototype._isChecksumEnabled = async function(next) {
 
 ZongJi.prototype._findBinlogEnd = async function(next) {
   var self = this;
-  self.ctrlConnection.query('SHOW BINARY LOGS', function(err, rows) {
+  self.ctrlConnection.query('SHOW BINARY LOGS', async function(err, rows) {
     if (err) {
       // Errors should be emitted
       await self.emit('error', err);
@@ -195,7 +195,7 @@ ZongJi.prototype._fetchTableInfo = async function(tableMapEvent, next) {
   var sql = util.format(tableInfoQueryTemplate,
     tableMapEvent.schemaName, tableMapEvent.tableName);
 
-  this.ctrlConnection.query(sql, function(err, rows) {
+  this.ctrlConnection.query(sql, async function(err, rows) {
     if (err) {
       // Errors should be emitted
       await self.emit('error', err);
@@ -244,7 +244,7 @@ ZongJi.prototype.start = function(options) {
 
           if (!tableMap) {
             self.connection.pause();
-            self._fetchTableInfo(event, function() {
+            self._fetchTableInfo(event, async function() {
               // merge the column info with metadata
               event.updateColumnInfo();
               await self.emit('binlog', event);
@@ -312,7 +312,7 @@ ZongJi.prototype._skipSchema = function(database, table){
 };
 
 ZongJi.prototype._emitError = async function(error) {
-  await self.emit('error', error);
+  await this.emit('error', error);
 };
 
 module.exports = ZongJi;
