@@ -15,8 +15,10 @@ var alternateDsn = [
 
 function ZongJi(dsn, options) {
   this.set(options);
-
+  
   AwaitEventEmitter.call(this);
+  this.emit = emitter.emit;
+  this.on = emitter.on;
 
   var binlogDsn;
 
